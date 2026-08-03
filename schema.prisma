@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" 
+  url      = env("DATABASE_URL")
+}
+
+model User {
+    id       String @id @default (uuid())
+    name     String
+    email    String @unique
+    password String
+}
+
+model Seat {
+    id         String @id @default (uuid())
+    status     String
+    userId     String?
+    showId     String?
+    show       Show?    @relation(fields: [showId], references: [showId])
+    expiryTime DateTime?
+    paymentId  String? 
+}
+
+model Show {
+  showId        String @id @default (uuid())
+  title         String
+  screenName    String
+  price         Float
+  status        String
+  bookingStarts DateTime?
+  thumbnail     String?
+  seats         Seat[]
+}

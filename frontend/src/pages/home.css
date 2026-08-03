@@ -1,0 +1,18 @@
+.log-Out-Button {
+    background-color: black;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    transition: 200ms ease-in-out;
+}
+
+.log-Out-Button:hover {
+    transition: 200ms ease-in-out;
+    background-color: white;
+    color: black;
+    font-weight: 700;
+}

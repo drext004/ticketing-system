@@ -1,0 +1,907 @@
+import { Link, useNavigate } from 'react-router-dom';
+import { LogOut, Ticket } from 'lucide-react';
+import { getAuthToken, removeAuthToken } from '../api/client';
+
+export const Navbar = () => {
+  const navigate = useNavigate();
+  const token = getAuthToken();
+
+  const handleLogout = () => {
+    removeAuthToken();
+    navigate('/');
+  };
+
+  return (
+    <nav className="glass-panel" style={{ margin: '1rem', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Link to="/" className="flex-center" style={{ gap: '0.5rem', fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary-hover)' }}>
+        <Ticket size={32} />
+        <span>VibeTix</span>
+      </Link>
+      
+      <div style={{ display: 'flex', gap: '1rem' }}>
+        {token ? (
+          <button className="btn btn-secondary" onClick={handleLogout} style={{ gap: '0.5rem' }}>
+            <LogOut size={18} />
+            Logout
+          </button>
+        ) : (
+          <>
+            <Link to="/" className="btn btn-secondary">Login / Sign Up</Link>
+          </>
+        )}
+      </div>
+    </nav>
+  );
+};
+import React, { useState } from 'react';
+import cardSwirl from '../assets/card-swirl.svg';
+import { useNavigate } from 'react-router-dom';
+import { apiClient, setAuthToken } from '../api/client';
+
+interface RegistrationCardProps {
+  isLogin: boolean;
+  toggleMode: () => void;
+}
+
+export const RegistrationCard: React.FC<RegistrationCardProps> = ({ isLogin, toggleMode }) => {
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    
+    try {
+      if (isLogin) {
+        const res = await apiClient('/login', { data: { email, password } });
+        setAuthToken(res.token);
+        navigate('/shows');
+      } else {
+        await apiClient('/register', { data: { name: fullName, email, password } });
+        // Automatically log them in after registration, or toggle mode
+        const res = await apiClient('/login', { data: { email, password } });
+        setAuthToken(res.token);
+        navigate('/shows');
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="reg-card">
+      <img src={cardSwirl} alt="" className="reg-card-bg" />
+      
+      <div className="reg-card-content">
+        <button className="reg-card-toggle" onClick={toggleMode} type="button">
+          {isLogin ? 'Register.' : 'Login.'}
+        </button>
+        
+        <h2 className="reg-card-title">{isLogin ? 'Login.' : 'Register.'}</h2>
+        
+        {!isLogin && (
+          <p className="reg-card-subtitle">Register to book your tix.</p>
+        )}
+
+        {error && <div style={{ color: '#ef4444', marginBottom: '10px', textAlign: 'center', fontWeight: 'bold' }}>{error}</div>}
+
+        <form className="reg-form" onSubmit={handleSubmit}>
+          {!isLogin && (
+            <div className="reg-input-group">
+              <input 
+                type="text" 
+                className="reg-input" 
+                placeholder="Full name" 
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+              />
+            </div>
+          )}
+          
+          <div className="reg-input-group">
+            <input 
+              type="email" 
+              className="reg-input" 
+              placeholder="Email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          
+          <div className="reg-input-group">
+            <input 
+              type="password" 
+              className="reg-input reg-input-bordered" 
+              placeholder="Password" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+
+          {!isLogin && (
+            <p className="reg-terms">
+              By registering you agree to our.
+              <strong>Terms and Conditions</strong>
+            </p>
+          )}
+
+          <div className="reg-submit-wrapper">
+            <button type="submit" className="reg-submit" disabled={loading}>
+              {loading ? 'Processing...' : (isLogin ? 'Login' : 'Register')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+import React from 'react';
+
+interface Seat {
+  id: string;
+  status: 'AVAILABLE' | 'HELD' | 'BOOKED';
+}
+
+interface SeatMapProps {
+  seats: Seat[];
+  onSeatSelect: (seatId: string) => void;
+  selectedSeatId: string | null;
+}
+
+export const SeatMap: React.FC<SeatMapProps> = ({ seats, onSeatSelect, selectedSeatId }) => {
+  const getSeatClass = (status: string, id: string) => {
+    if (id === selectedSeatId) return 'seat seat-selected';
+    if (status === 'AVAILABLE' || !status) return 'seat seat-available';
+    if (status === 'HELD') return 'seat seat-held';
+    if (status === 'BOOKED') return 'seat seat-booked';
+    return 'seat seat-available';
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(10, minmax(40px, 60px))', 
+        gap: '20px', 
+        marginTop: '2rem',
+        width: '100%',
+        maxWidth: '800px',
+        justifyContent: 'center'
+      }}>
+        {seats.map((seat, index) => (
+          <button
+            key={seat.id}
+            disabled={seat.status === 'HELD' || seat.status === 'BOOKED'}
+            onClick={() => onSeatSelect(seat.id)}
+            className={getSeatClass(seat.status, seat.id)}
+          >
+            {index + 1}
+          </button>
+        ))}
+      </div>
+      
+      <div style={{ marginTop: '80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <p style={{ fontFamily: 'var(--font-space-mono)', color: '#8a8a8a', fontSize: '32px', margin: '0 0 16px 0' }}>
+          eyes this side
+        </p>
+        <svg width="800" height="40" viewBox="0 0 800 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0 40C200 -13.3333 600 -13.3333 800 40" stroke="#8a8a8a" strokeWidth="4"/>
+        </svg>
+      </div>
+    </div>
+  );
+};
+
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { apiClient, removeAuthToken } from '../api/client';
+import './home.css';
+
+interface Show {
+  showId: string;
+  title: string;
+  screenName: string;
+  price: number;
+  status: string;
+  bookingStarts: string | null;
+  thumbnail?: string | null;
+}
+
+export const AdminDashboard = () => {
+  const navigate = useNavigate();
+  const [shows, setShows] = useState<Show[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  // Form state
+  const [title, setTitle] = useState('');
+  const [screenName, setScreenName] = useState('Screen 1');
+  const [price, setPrice] = useState('15');
+  const [bookingStarts, setBookingStarts] = useState('');
+  const [thumbnail, setThumbnail] = useState('');
+
+  const fetchShows = async () => {
+    try {
+      setLoading(true);
+      const data = await apiClient('/shows');
+      setShows(data.shows || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch shows');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchShows();
+  }, []);
+
+  const handleCreateShow = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      await apiClient('/admin/shows', {
+        data: {
+          title,
+          screenName,
+          price,
+          bookingStarts: bookingStarts || null,
+          thumbnail: thumbnail || null,
+        }
+      });
+      setTitle('');
+      setScreenName('Screen 1');
+      setPrice('15');
+      setBookingStarts('');
+      setThumbnail('');
+      await fetchShows();
+    } catch (err: any) {
+      setError(err.message || 'Failed to create show');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteShow = async (showId: string) => {
+    if (!window.confirm("Are you sure you want to delete this show and all its 100 seats?")) return;
+    try {
+      setLoading(true);
+      await apiClient(`/admin/shows/${showId}`, { method: 'DELETE' });
+      await fetchShows();
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete show');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'relative', width: '100%', minHeight: '100vh', backgroundColor: 'var(--background-shows)', overflowX: 'hidden' }}>
+      
+      {/* Background decorations */}
+      <div style={{ position: 'absolute', width: '1112px', height: '858px', left: '-400px', top: '-100px', background: 'radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 60%)', transform: 'rotate(-19deg)', pointerEvents: 'none' }} />
+
+      {/* Header */}
+      <div style={{
+        position: 'absolute',
+        top: 0, left: 0, width: '100%', height: '100px',
+        backgroundColor: 'var(--header-bg)',
+        borderBottomLeftRadius: '50px',
+        borderBottomRightRadius: '50px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 47px',
+        zIndex: 10
+      }}>
+        <a style={{ color: 'white', fontSize: '56px', fontWeight: 'bold', letterSpacing: '-1.12px', lineHeight: 'normal', textDecoration: 'none' }} href='/'>
+          Tix
+        </a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+          <div style={{ color: 'white', fontSize: '32px', fontWeight: '500', letterSpacing: '-0.64px', lineHeight: 'none' }}>
+            Admin Dashboard
+          </div>
+          <button className='log-Out-Button'
+            onClick={() => { removeAuthToken(); navigate('/'); }}
+          >
+            Log Out
+          </button>
+        </div>
+      </div>
+
+      <div style={{ paddingTop: '150px', paddingLeft: '40px', paddingRight: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem' }}>
+        
+        {error && <div style={{ color: 'white', background: '#ef4444', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', zIndex: 1 }}>{error}</div>}
+
+        <div style={{ 
+          backgroundColor: 'var(--header-bg)', 
+          borderRadius: '32px', 
+          padding: '2.5rem', 
+          width: '100%', 
+          maxWidth: '800px',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+          color: 'white',
+          position: 'relative'
+        }}>
+          <h2 style={{ margin: '0 0 1.5rem 0', fontFamily: 'var(--font-hahmlet)', fontSize: '32px', fontWeight: 500 }}>Create New Show</h2>
+          <form onSubmit={handleCreateShow} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '18px', fontWeight: 500 }}>Movie Title</label>
+              <input 
+                type="text" 
+                style={{ width: '100%', padding: '1rem 1.25rem', borderRadius: '16px', border: 'none', outline: 'none', fontSize: '16px', backgroundColor: 'rgba(255,255,255,0.9)' }}
+                value={title} 
+                onChange={e => setTitle(e.target.value)} 
+                required 
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '18px', fontWeight: 500 }}>Screen Name (100 seats will be generated)</label>
+              <input 
+                type="text" 
+                style={{ width: '100%', padding: '1rem 1.25rem', borderRadius: '16px', border: 'none', outline: 'none', fontSize: '16px', backgroundColor: 'rgba(255,255,255,0.9)' }}
+                value={screenName} 
+                onChange={e => setScreenName(e.target.value)} 
+                required 
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '18px', fontWeight: 500 }}>Ticket Price ($)</label>
+              <input 
+                type="number" 
+                style={{ width: '100%', padding: '1rem 1.25rem', borderRadius: '16px', border: 'none', outline: 'none', fontSize: '16px', backgroundColor: 'rgba(255,255,255,0.9)' }}
+                value={price} 
+                onChange={e => setPrice(e.target.value)} 
+                required 
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '18px', fontWeight: 500 }}>Booking Starts (optional)</label>
+              <input 
+                type="datetime-local" 
+                style={{ width: '100%', padding: '1rem 1.25rem', borderRadius: '16px', border: 'none', outline: 'none', fontSize: '16px', backgroundColor: 'rgba(255,255,255,0.9)' }}
+                value={bookingStarts} 
+                onChange={e => setBookingStarts(e.target.value)} 
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '18px', fontWeight: 500 }}>Movie Poster URL (optional)</label>
+              <input 
+                type="url" 
+                placeholder="https://example.com/poster.jpg"
+                style={{ width: '100%', padding: '1rem 1.25rem', borderRadius: '16px', border: 'none', outline: 'none', fontSize: '16px', backgroundColor: 'rgba(255,255,255,0.9)' }}
+                value={thumbnail} 
+                onChange={e => setThumbnail(e.target.value)} 
+              />
+            </div>
+            <button type="submit" style={{ 
+              marginTop: '1rem', 
+              backgroundColor: 'var(--btn-book-now)', 
+              color: 'white', 
+              padding: '1rem', 
+              borderRadius: '16px', 
+              border: 'none', 
+              fontSize: '19.2px', 
+              fontWeight: 'bold', 
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(255, 174, 0, 0.4)',
+              transition: 'transform 0.2s'
+            }} disabled={loading}>
+              {loading ? 'Creating...' : 'Create Show'}
+            </button>
+          </form>
+        </div>
+
+        <div style={{ 
+          backgroundColor: 'var(--header-bg)', 
+          borderRadius: '32px', 
+          padding: '2.5rem', 
+          width: '100%', 
+          maxWidth: '800px',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+          color: 'white',
+          marginBottom: '3rem',
+          position: 'relative'
+        }}>
+          <h2 style={{ margin: '0 0 1.5rem 0', fontFamily: 'var(--font-hahmlet)', fontSize: '32px', fontWeight: 500 }}>Manage Shows</h2>
+          {shows.length === 0 ? (
+            <p style={{ marginTop: '1rem', color: '#ffae00' }}>No shows found. Create one above.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {shows.map(show => (
+                <div key={show.showId} style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  padding: '1.5rem', 
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)', 
+                  borderRadius: '16px',
+                  border: '1px solid rgba(255,255,255,0.1)'
+                }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold' }}>{show.title}</h3>
+                    <p style={{ margin: '0.5rem 0 0 0', color: '#e5e7eb', fontSize: '16px' }}>
+                      {show.screenName} • ${show.price} • {show.status}
+                    </p>
+                    <p style={{ margin: '0.25rem 0 0 0', fontSize: '14px', color: '#9ca3af' }}>ID: {show.showId}</p>
+                  </div>
+                  <button style={{ 
+                    background: '#ef4444', 
+                    color: 'white', 
+                    padding: '0.75rem 1.5rem', 
+                    borderRadius: '12px', 
+                    border: 'none', 
+                    fontWeight: 'bold', 
+                    fontSize: '16px',
+                    cursor: 'pointer' 
+                  }} onClick={() => handleDeleteShow(show.showId)} disabled={loading}>
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { SeatMap } from '../components/SeatMap';
+import { apiClient, removeAuthToken } from '../api/client';
+import { io } from 'socket.io-client';
+
+export const Booking = () => {
+  const { showId } = useParams();
+  const navigate = useNavigate();
+  const [seats, setSeats] = useState<any[]>([]);
+  const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [step, setStep] = useState(1);
+
+  useEffect(() => {
+    loadSeats();
+    const socket = io('http://localhost:3000');
+    socket.on('seatUpdate', () => {
+      console.log('Backend says a seat changed! Reloading...');
+      loadSeats();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [showId]);
+
+  useEffect(() => {
+    if (!selectedSeat) return;
+
+    const handleTabClose = () => {
+      apiClient('/releaseSeat', {
+        data: { seat: { seatId: selectedSeat } },
+        keepalive: true
+      }).catch(console.error); // Catch errors silently in the background
+    };
+
+    window.addEventListener('beforeunload', handleTabClose);
+
+    return () => {
+      handleTabClose();
+      window.removeEventListener('beforeunload', handleTabClose);
+    };
+  }, [selectedSeat]);
+
+  const loadSeats = async () => {
+    try {
+      const res = await apiClient(`/getSeats/shows/${showId}/seats`);
+      setSeats(res.result || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load seats');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleHoldSeat = async () => {
+    if (!selectedSeat) return;
+    try {
+      await apiClient('/chooseShow', { data: { seatId: selectedSeat, showId } });
+      setStep(2); // Move to payment
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handlePaymentAndBooking = async () => {
+    try {
+      // 1. Payment
+      await apiClient('/payment', { data: { seat: { id: selectedSeat }, show: { showId } } });
+      // 2. Confirm Booking
+      await apiClient('/booking', { data: { seatId: selectedSeat, showId } });
+      setStep(3); // Success
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  if (loading) return <div className="container flex-center min-h-screen">Loading...</div>;
+
+  return (
+    <div style={{ position: 'relative', width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '40px', paddingBottom: '80px' }}>
+      
+      {/* Header */}
+      <div style={{ 
+        position: 'absolute', 
+        top: 0, left: 0, width: '100%', height: '100px', 
+        backgroundColor: 'var(--header-bg)', 
+        borderBottomLeftRadius: '50px', 
+        borderBottomRightRadius: '50px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 47px',
+        zIndex: 10
+      }}>
+        <div style={{ color: 'white', fontSize: '56px', fontWeight: 'bold', letterSpacing: '-1.12px', lineHeight: 'normal', cursor: 'pointer' }} onClick={() => navigate('/')}>
+          Tix
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+          <div style={{ color: 'white', fontSize: '32px', fontWeight: '500', letterSpacing: '-0.64px', lineHeight: 'none' }}>
+            Booking
+          </div>
+          <button 
+            onClick={() => { removeAuthToken(); navigate('/'); }}
+            style={{ backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.5)', color: 'white', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}
+          >
+            Log Out
+          </button>
+        </div>
+      </div>
+
+      <div style={{ width: '100%', maxWidth: '1000px', marginTop: '120px', padding: '0 20px' }}>
+        {error && <div style={{ color: 'white', padding: '1rem', background: '#dc2626', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center', fontWeight: 'bold' }}>{error}</div>}
+
+        {step === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {seats.length === 0 ? (
+              <p style={{ fontSize: '1.2rem', color: '#8a8a8a' }}>No seats found. (Make sure you have seeded your database with a Show and some Seats!)</p>
+            ) : (
+              <>
+                <SeatMap seats={seats} onSeatSelect={setSelectedSeat} selectedSeatId={selectedSeat} />
+                <div style={{ marginTop: '60px', display: 'flex', justifyContent: 'center', width: '100%' }}>
+                  <button 
+                    className="btn btn-primary" 
+                    disabled={!selectedSeat} 
+                    onClick={handleHoldSeat}
+                    style={{ fontSize: '24px', padding: '16px 48px', opacity: selectedSeat ? 1 : 0.5, cursor: selectedSeat ? 'pointer' : 'not-allowed' }}
+                  >
+                    Hold Selected Seat
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {step === 2 && (
+          <div style={{ textAlign: 'center', padding: '4rem 2rem', backgroundColor: 'var(--header-bg)', borderRadius: '32px', color: 'white', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ fontSize: '32px', marginBottom: '16px' }}>Seat Held Successfully!</h3>
+            <p style={{ fontSize: '18px', color: '#d9d9d9' }}>Please complete your payment within 10 minutes.</p>
+            <div style={{ margin: '3rem auto', padding: '2rem', border: '2px dashed rgba(255,255,255,0.2)', borderRadius: '16px', maxWidth: '400px' }}>
+              <p style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: 0, color: 'var(--btn-book-now)' }}>Total: $99.00</p>
+            </div>
+            <button className="btn btn-primary" style={{ fontSize: '24px', padding: '16px 48px' }} onClick={handlePaymentAndBooking}>
+              Pay Now & Confirm
+            </button>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div style={{ textAlign: 'center', padding: '4rem 2rem', backgroundColor: 'var(--header-bg)', borderRadius: '32px', color: 'white', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <h1 style={{ color: 'var(--btn-book-now)', fontSize: '48px', marginBottom: '24px' }}>🎉 Booking Confirmed!</h1>
+            <p style={{ fontSize: '1.25rem', color: '#d9d9d9' }}>Your ticket has been booked successfully. Enjoy the show!</p>
+            <button className="btn btn-primary" style={{ marginTop: '3rem', fontSize: '20px', padding: '12px 32px' }} onClick={() => navigate('/')}>
+              Back to Home
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { apiClient, removeAuthToken } from '../api/client';
+import './home.css';
+
+interface Show {
+  showId: string;
+  title: string;
+  screenName: string;
+  price: number;
+  status: string;
+  bookingStarts: string | null;
+  thumbnail?: string | null;
+}
+
+export const Home = () => {
+  const navigate = useNavigate();
+  const [shows, setShows] = useState<Show[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchShows = async () => {
+      try {
+        const data = await apiClient('/shows');
+        setShows(data.shows || []);
+      } catch (err) {
+        console.error("Failed to fetch shows", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchShows();
+  }, []);
+
+  return (
+    <div style={{ position: 'relative', width: '100%', minHeight: '100vh', backgroundColor: 'var(--background-shows)', overflowX: 'hidden' }}>
+
+      {/* Background decorations - simple CSS approximations of the ellipses */}
+      <div style={{ position: 'absolute', width: '1112px', height: '858px', left: '-400px', top: '-100px', background: 'radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 60%)', transform: 'rotate(-19deg)', pointerEvents: 'none' }} />
+
+      {/* Header */}
+      <div style={{
+        position: 'absolute',
+        top: 0, left: 0, width: '100%', height: '100px',
+        backgroundColor: 'var(--header-bg)',
+        borderBottomLeftRadius: '50px',
+        borderBottomRightRadius: '50px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 47px',
+        zIndex: 10
+      }}>
+        <a style={{ color: 'white', fontSize: '56px', fontWeight: 'bold', letterSpacing: '-1.12px', lineHeight: 'normal' }} href='/'>
+          Tix
+        </a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+          <div style={{ color: 'white', fontSize: '32px', fontWeight: '500', letterSpacing: '-0.64px', lineHeight: 'none' }}>
+            Shows
+          </div>
+          <button className='log-Out-Button'
+            onClick={() => { removeAuthToken(); navigate('/'); }}
+          >
+            Log Out
+          </button>
+        </div>
+      </div>
+
+      <div style={{ paddingTop: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <span style={{ fontSize: '32px', fontWeight: 'bold', color: 'black', marginRight: '10px' }}>Screening</span>
+          <span style={{ fontSize: '32px', fontFamily: 'var(--font-hahmlet)', fontWeight: 500, color: 'black' }}>Right Now</span>
+        </div>
+
+        {loading ? (
+          <p style={{ color: '#000', marginTop: '1rem' }}>Loading shows...</p>
+        ) : shows.length === 0 ? (
+          <p style={{ color: '#000', marginTop: '1rem' }}>No upcoming shows available right now.</p>
+        ) : (
+          <div style={{
+            display: 'flex',
+            gap: '48px',
+            padding: '20px 40px',
+            maxWidth: '100%',
+            overflowX: 'auto',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexWrap: 'wrap'
+          }}>
+            {shows.map((show) => (
+              <div key={show.showId} style={{
+                position: 'relative',
+                width: '320px',
+                height: '512px',
+                backgroundColor: 'var(--header-bg)',
+                borderRadius: '32px',
+                overflow: 'hidden',
+                flexShrink: 0,
+                boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+              }}>
+                <div style={{ position: 'absolute', width: '341px', height: '263px', left: '-138px', top: '184px', background: 'radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+                <div style={{
+                  position: 'absolute',
+                  top: '16px', left: '16px', width: '288px', height: '320px',
+                  backgroundColor: '#d9d9d9',
+                  borderRadius: '16px 16px 32px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  overflow: 'hidden'
+                }}>
+                  {show.thumbnail ? (
+                    <img src={show.thumbnail} alt={show.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <p style={{ fontSize: '19.2px', fontWeight: 'bold', color: 'black', margin: 0, padding: '0 20px' }}>
+                      {show.title}<br />thumbnail
+                    </p>
+                  )}
+                </div>
+
+                <div style={{ position: 'absolute', top: '358px', width: '100%', textAlign: 'center' }}>
+                  <p style={{ fontSize: '19.2px', fontWeight: 'bold', color: 'white', margin: 0 }}>
+                    {show.title}
+                  </p>
+                  <p style={{ fontSize: '14px', color: '#ccc', margin: '4px 0 0 0' }}>
+                    {show.screenName} • ${show.price}
+                  </p>
+                </div>
+
+                <div style={{ position: 'absolute', top: '441px', width: '100%', display: 'flex', justifyContent: 'center' }}>
+                  <Link to={`/booking/${show.showId}`} style={{
+                    backgroundColor: 'var(--btn-book-now)',
+                    width: '128px',
+                    height: '44.8px',
+                    borderRadius: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: '19.2px',
+                    fontWeight: 'bold',
+                    textDecoration: 'none',
+                    transition: 'transform 0.2s',
+                    boxShadow: '0 4px 12px rgba(255, 174, 0, 0.4)'
+                  }}>
+                    Book Now
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+import React, { useState } from 'react';
+import './LandingPage.css';
+import { RegistrationCard } from '../components/RegistrationCard';
+import bgSwirl from '../assets/bg-swirl.svg';
+import { Link } from 'react-router-dom';
+
+export const LandingPage: React.FC = () => {
+  const [isLogin, setIsLogin] = useState(false);
+
+  return (
+    <div className="landing-container">
+      {/* Top Header */}
+      <header className="landing-header">
+        <div className="landing-logo">Tix</div>
+        {/* We can use a Link if there's a shows route, else just text for now */}
+        <Link to="/shows" className="landing-nav-links">Shows</Link>
+      </header>
+
+      {/* Decorative Background SVG */}
+      <div className="landing-bg-overlay">
+        <img src={bgSwirl} alt="" className="landing-bg-swirl" />
+      </div>
+
+      {/* Main Content Area */}
+      <main className="landing-content">
+        {/* Typography Section */}
+        <div className="landing-text-section">
+          <h1 className="landing-heading">
+            Your one stop solution <br />
+            for <br />
+            <span className="font-hahmlet">Movie,</span> <br />
+            <span className="font-hahmlet">Music,</span> <br />
+            <span className="font-hahmlet">Comedy show</span>
+          </h1>
+          <span className="tix-highlight">Tix.</span>
+          <p className="landing-subheading">
+            Get yours <span className="underline">today</span>!
+          </p>
+        </div>
+
+        {/* Form Card Section */}
+        <div className="landing-card-section">
+          <RegistrationCard isLogin={isLogin} toggleMode={() => setIsLogin(!isLogin)} />
+        </div>
+      </main>
+    </div>
+  );
+};
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { apiClient, setAuthToken } from '../api/client';
+
+export const Login = ({ isRegister = false }: { isRegister?: boolean }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    try {
+      if (isRegister) {
+        await apiClient('/register', { data: { name, email, password } });
+        // Auto login after register (simulated by redirecting to login or handling it here)
+        navigate('/login');
+      } else {
+        const res = await apiClient('/login', { data: { email, password } });
+        setAuthToken(res.token);
+        navigate('/');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div className="container flex-center" style={{ minHeight: '80vh' }}>
+      <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem' }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>{isRegister ? 'Create Account' : 'Welcome Back'}</h2>
+        {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem', textAlign: 'center' }}>{error}</div>}
+        
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {isRegister && (
+            <input 
+              type="text" 
+              placeholder="Full Name" 
+              className="input" 
+              value={name} 
+              onChange={e => setName(e.target.value)} 
+              required 
+            />
+          )}
+          <input 
+            type="email" 
+            placeholder="Email Address" 
+            className="input" 
+            value={email} 
+            onChange={e => setEmail(e.target.value)} 
+            required 
+          />
+          <input 
+            type="password" 
+            placeholder="Password" 
+            className="input" 
+            value={password} 
+            onChange={e => setPassword(e.target.value)} 
+            required 
+          />
+          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+            {isRegister ? 'Sign Up' : 'Sign In'}
+          </button>
+        </form>
+        
+        <p style={{ textAlign: 'center', marginTop: '1.5rem', color: '#a1a1aa' }}>
+          {isRegister ? "Already have an account? " : "Don't have an account? "}
+          <Link to={isRegister ? "/login" : "/register"} style={{ color: 'var(--primary-hover)' }}>
+            {isRegister ? "Log In" : "Sign Up"}
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+};

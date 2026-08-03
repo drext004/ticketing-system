@@ -1,0 +1,458 @@
+import {Request, Response} from 'express';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export const createShow = async (req: Request, res: Response) => {
+    try {
+        const { title, screenName, price, bookingStarts, thumbnail } = req.body;
+        
+        // Basic validation
+        if (!title || !screenName || !price) {
+            return res.status(400).json({ error: "Missing required fields: title, screenName, price" });
+        }
+
+        // Create the show
+        const show = await prisma.show.create({
+            data: {
+                title,
+                screenName,
+                price: parseFloat(price),
+                status: "active",
+                bookingStarts: bookingStarts ? new Date(bookingStarts) : null,
+                thumbnail: thumbnail || null,
+            }
+        });
+
+        // Automatically generate 100 seats for this show
+        const seatData = [];
+        for (let i = 0; i < 100; i++) {
+            seatData.push({
+                status: "available",
+                showId: show.showId
+            });
+        }
+        
+        await prisma.seat.createMany({
+            data: seatData
+        });
+
+        res.status(201).json({ message: "Show created successfully with 100 seats.", show });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const deleteShow = async (req: Request, res: Response) => {
+    try {
+        const showId = req.params.showId;
+        
+        // Delete all seats associated with the show first (if not cascading)
+        await prisma.seat.deleteMany({
+            where: { showId: showId }
+        });
+
+        // Delete the show
+        await prisma.show.delete({
+            where: { showId: showId }
+        });
+
+        res.status(200).json({ message: "Show and associated seats deleted successfully." });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const getShows = async (req: Request, res: Response) => {
+    try {
+        const shows = await prisma.show.findMany({
+            orderBy: { bookingStarts: 'asc' }
+        });
+        res.status(200).json({ shows });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+import { Request, Response, NextFunction } from 'express';
+import { PrismaClient } from '@prisma/client';
+import { io } from '../../index';
+
+
+const prisma = new PrismaClient();
+
+const confirmBooking = async (req: Request, res: Response) => {
+    const userId = (req as any).user.userId
+    const seat = req.body;
+
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            const seatExists = await tx.seat.findUnique({ where: { id: seat.seatId } })
+
+            if (!seatExists) {
+                throw new Error("Seat not found")
+            }
+
+            const userCheck = seatExists.userId;
+
+            const paymentMade = seatExists.paymentId;
+
+            const seatStatus = seatExists.status;
+
+            const showId = seatExists.showId;
+
+            if (seatStatus === "HELD" && paymentMade &&
+                userCheck === userId &&
+                seatExists.expiryTime &&
+                Date.now() < seatExists.expiryTime.getTime() &&
+                seat.showId === showId) {
+                const updatedSeat = await tx.seat.update({
+                    where: { id: seat.seatId },
+                    data: {
+                        status: "BOOKED",
+                        expiryTime: null
+                    }
+                })
+
+                io.emit('seatUpdate');
+
+
+                return updatedSeat;
+            }
+
+            else {
+                throw new Error("Invalid Request.")
+            }
+
+
+
+        })
+
+        res.status(200).json({ res: result })
+
+    }
+    catch (error: any) {
+        res.status(409).json({ error: error.message });
+
+    }
+}
+
+export default confirmBooking;import { Request, Response, NextFunction } from 'express';
+import { PrismaClient } from '@prisma/client';
+import { io } from '../../index';
+
+const prisma = new PrismaClient();
+
+const getSeatMap = async (req: Request, res: Response) => {
+    const userId = (req as any).user.userId;
+    const showCode = req.params.showId as string;
+
+    try {
+        await prisma.seat.updateMany({
+            where: {
+                showId: showCode, status: 'HELD', expiryTime: { lt: new Date() }
+            }, data: {
+                status: "AVAILABLE",
+                userId: null,
+                expiryTime: null
+            }
+        });
+
+
+        const result = await prisma.seat.findMany({ where: { showId: showCode }, orderBy: { id: 'asc' } });
+        if (!result.length) {
+            throw new Error("Couldn't retreive seat map.")
+        }
+        res.status(200).json({ result, message: "Seat Map fetched succesfully!" })
+
+    }
+
+    catch (error: any) {
+        res.status(409).json({ error: error.message });
+    }
+}
+
+export default getSeatMap;import { Request, Response, NextFunction } from 'express';
+import { PrismaClient } from '@prisma/client';
+import crypto, { randomBytes } from 'node:crypto';
+import { io } from '../../index';
+
+const prisma = new PrismaClient();
+
+const confirmPayment = async (req: Request, res: Response) => {
+    const userId = (req as any).user.userId;
+    const { seat, show } = req.body;
+
+
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            const seatDetails = await tx.seat.findUnique({ where: { id: seat.id } })
+            if (!seatDetails) {
+                throw new Error("bad request.")
+            }
+            const seatId = seatDetails.id;
+            const showId = seatDetails.showId;
+            const verifyUser = seatDetails.userId;
+            const seatStatus = seatDetails.status;
+            const mockPaymentId = `pay_${randomBytes(8).toString('hex')}`;
+
+            if (verifyUser === userId &&
+                seatStatus === "HELD" &&
+                showId === show.showId
+            ) {
+                const updatedSeat = await tx.seat.update({
+                    where: { id: seatId },
+                    data: {
+                        paymentId: mockPaymentId
+                    }
+                })
+                io.emit('seatUpdate');
+                return updatedSeat;
+            }
+            else {
+                throw new Error("Validation failed: Seat is not held or does not belong to you.")
+            }
+
+        })
+        res.status(200).json({ result, message: 'Payment Successful' })
+    }
+    catch (error: any) {
+        res.status(409).json({ error: error.message });
+
+    }
+}
+
+export default confirmPayment;import express, { Request, Response } from "express";
+import { PrismaClient } from "@prisma/client";
+import { io } from "../../index";
+const prisma = new PrismaClient();
+
+export const releaseSeat = async (req: Request, res: Response) => {
+    try {
+        const { seat } = req.body;
+        await prisma.seat.updateMany({
+            where: { id: seat.seatId, status: 'HELD' },
+            data: {
+                status: "AVAILABLE",
+                userId: null,
+                expiryTime: null
+            }
+        });
+
+        io.emit('seatUpdate');
+
+        res.status(200).json({ message: "Seat released successfully." });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+import { Request, Response, NextFunction } from 'express';
+import { PrismaClient } from '@prisma/client';
+import { io } from '../../index';
+
+
+const prisma = new PrismaClient();
+
+const reserveSeat = async (request: Request, response: Response) => {
+    const userId = (request as any).user.userId;
+    const { seatId, showId } = request.body;
+
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+
+            const show = await tx.show.findUnique({ where: { showId: showId } });
+
+            if (!show) {
+                throw new Error("Show not Found.")
+            }
+
+            const isNotBooking = show.bookingStarts &&
+                Date.now() < show.bookingStarts.getTime();
+
+
+            if (show.status === "Private" || isNotBooking) {
+
+                throw new Error("Show is not available for booking right now.")
+
+            }
+
+
+            const seat = await tx.seat.findUnique({ where: { id: seatId } });
+
+            if (!seat) {
+
+                throw new Error("Seat not found");
+
+            }
+
+            const isActiveHold = seat.status === "HELD" &&
+                seat.expiryTime &&
+                Date.now() < seat.expiryTime.getTime();
+
+            if (seat.status === "BOOKED" || isActiveHold) {
+
+                throw new Error("Seat already taken or being bought.");
+            }
+
+
+            const expiryTime = 10 * 60 * 1000 + Date.now();
+
+            const updatedSeat = await tx.seat.update({
+                where: { id: seatId },
+                data: {
+                    status: "HELD",
+                    userId: userId,
+                    showId: showId,
+                    expiryTime: new Date(expiryTime)
+                }
+            });
+            io.emit('seatUpdate');
+            return updatedSeat;
+        });
+
+        response.status(200).json({ message: "Seat held!", seat: result });
+
+    }
+
+    catch (error: any) {
+
+        response.status(409).json({ error: error.message });
+    }
+
+};
+
+export default reserveSeat;
+
+
+import jwt from 'jsonwebtoken';
+import { Request, Response, NextFunction } from 'express';
+
+//middleware to authenticate JWT token
+
+const authenticateToken = (req: Request, res: Response, next: NextFunction): void => {
+  const authHeader = req.headers['authorization'];
+
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token){
+    res.status(401).json({message: "Access denied. No token provided"});
+    return;
+  }
+
+  const secret= process.env.JWT_SECRET ;
+  if (!secret){
+    res.status(500).json({message: "Server error. JWT secret not configured"});
+    return;
+  }
+  jwt.verify(token, secret, (err, decoded)=>{
+    if (err){
+
+      res.status(403).json({message: "Invalid or expired token"});
+      return;
+    }
+
+    (req as any).user = decoded;
+
+    next();
+  })
+
+  
+
+
+}
+
+export default authenticateToken;import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { Request, Response, NextFunction } from 'express';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+
+//login block and JWT creation
+const login = async(req: Request, res: Response)=> {
+  const {email, password} = req.body;
+
+  try{
+    const user = await prisma.user.findUnique({
+      where: {email}
+    });
+
+    if (!user){
+      res.status(404).json({message:"user not found!"});
+      return;
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if(!isPasswordValid){
+      res.status(401).json({message: "Invalid credentials"});
+      return;
+    }
+
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      res.status(500).json({ message: "Server error. JWT secret not configured" });
+      return;
+    }
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      secret,
+      { expiresIn: '1h' }
+    );
+
+    res.status(200).json({message:"Token created", token});
+
+  }
+
+  catch (error) {
+    console.error("[LOGIN ERROR]:", error);
+    res.status(500).json({error: "Internal server error"});
+  }
+
+};
+
+export default login;
+
+
+
+
+import bcrypt from 'bcrypt';
+
+import { Request, Response, NextFunction } from 'express';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+const register = async(req: Request, res: Response, ) => {
+  const {name, email, password } = req.body;
+  
+  try{
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    const newUser= await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword
+      }
+      });
+      
+      res.status(201).json({
+        message:"new user created", 
+        user: {
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email
+      }
+    });
+    }
+    catch(error) {
+      console.error("Error logging", error);
+      res.status(400).json({ error: "Email already in use or invalid data" });
+
+    }
+};
+
+
+export default register;

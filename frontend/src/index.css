@@ -1,0 +1,182 @@
+@import url('https://fonts.googleapis.com/css2?family=Hahmlet:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+:root {
+  --background-shows: #ffe2e3;
+  --header-bg: #441112;
+  --btn-book-now: #ffae00;
+  
+  --seat-available-bg: #ffffff;
+  --seat-available-text: #8a8a8a;
+  
+  --seat-booked-bg: #8a8a8a;
+  --seat-booked-text: #ffffff;
+  
+  --seat-held-bg: #ffffff;
+  --seat-held-text: #8a8a8a;
+  --seat-held-shadow: inset 0px 0px 7.2px 8px rgba(255, 98, 0, 0.25);
+  
+  --seat-hover-shadow: inset 0px 0px 7.2px 8px rgba(16, 198, 0, 0.25);
+
+  --background: #0a0a0e;
+  --foreground: #fafafa;
+  --primary: #6d28d9;
+  --primary-hover: #7c3aed;
+  --secondary: #1e1e24;
+  --accent: #10b981;
+  --accent-hover: #059669;
+  --border: #27272a;
+  --glass-bg: rgba(30, 30, 36, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --font-family: 'Helvetica Neue', Helvetica, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-hahmlet: 'Hahmlet', serif;
+  --font-space-mono: 'Space Mono', monospace;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  background-color: var(--background-shows);
+  color: #000;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 0;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Utilities */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  color: var(--foreground);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1rem;
+}
+
+.btn-primary {
+  background-color: var(--btn-book-now);
+  color: white;
+  border-radius: 16px;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 174, 0, 0.4);
+}
+
+.btn-secondary {
+  background-color: var(--secondary);
+  color: white;
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background-color: var(--border);
+  transform: translateY(-2px);
+}
+
+.input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--foreground);
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.input:focus {
+  border-color: var(--primary);
+}
+
+/* Layout */
+.container {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.min-h-screen {
+  min-height: 100vh;
+}
+
+/* Seat Map Styles */
+.seat {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  border: none;
+  font-family: 'Helvetica', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.seat-available {
+  background-color: var(--seat-available-bg);
+  color: var(--seat-available-text);
+  cursor: pointer;
+}
+
+.seat-available:hover {
+  box-shadow: var(--seat-hover-shadow);
+}
+
+.seat-held {
+  background-color: var(--seat-held-bg);
+  color: var(--seat-held-text);
+  box-shadow: var(--seat-held-shadow);
+  cursor: not-allowed;
+}
+
+.seat-selected {
+  background-color: var(--seat-held-bg);
+  color: var(--seat-held-text);
+  box-shadow: var(--seat-held-shadow);
+  cursor: pointer;
+}
+
+.seat-booked {
+  background-color: var(--seat-booked-bg);
+  color: var(--seat-booked-text);
+  cursor: not-allowed;
+}
