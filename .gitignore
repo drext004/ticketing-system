@@ -36,3 +36,8 @@ temp/
 .idea/
 .DS_Store
 Thumbs.db
+
+
+#rough files
+**/rough*.ts
+/src/bookings/rough*.ts
