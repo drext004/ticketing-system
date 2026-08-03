@@ -41,3 +41,8 @@ Thumbs.db
 #rough files
 **rough*.ts
 /src/bookings/rough*.ts
+
+#notes
+*.md
+*.txt
+!README.md
