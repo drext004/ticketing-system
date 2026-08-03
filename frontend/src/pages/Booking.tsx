@@ -8,10 +8,11 @@ export const Booking = () => {
   const { showId } = useParams();
   const navigate = useNavigate();
   const [seats, setSeats] = useState<any[]>([]);
-  const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
+  const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [step, setStep] = useState(1);
+  const [showPrice, setShowPrice] = useState(0);
 
   useEffect(() => {
     loadSeats();
@@ -27,11 +28,11 @@ export const Booking = () => {
   }, [showId]);
 
   useEffect(() => {
-    if (!selectedSeat) return;
+    if (selectedSeats.length === 0) return;
 
     const handleTabClose = () => {
       apiClient('/releaseSeat', {
-        data: { seat: { seatId: selectedSeat } },
+        data: { seatIds: selectedSeats },
         keepalive: true
       }).catch(console.error); // Catch errors silently in the background
     };
@@ -42,12 +43,23 @@ export const Booking = () => {
       handleTabClose();
       window.removeEventListener('beforeunload', handleTabClose);
     };
-  }, [selectedSeat]);
+  }, [selectedSeats]);
+
+  const toggleSeatSelection = (seatId: string) => {
+    setSelectedSeats(prev => 
+      prev.includes(seatId) 
+        ? prev.filter(id => id !== seatId)
+        : [...prev, seatId]
+    );
+  };
 
   const loadSeats = async () => {
     try {
       const res = await apiClient(`/getSeats/shows/${showId}/seats`);
       setSeats(res.result || []);
+      if (res.showPrice !== undefined) {
+        setShowPrice(res.showPrice);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load seats');
     } finally {
@@ -56,9 +68,9 @@ export const Booking = () => {
   };
 
   const handleHoldSeat = async () => {
-    if (!selectedSeat) return;
+    if (selectedSeats.length === 0) return;
     try {
-      await apiClient('/chooseShow', { data: { seatId: selectedSeat, showId } });
+      await apiClient('/chooseShow', { data: { seatIds: selectedSeats, showId } });
       setStep(2); // Move to payment
     } catch (err: any) {
       setError(err.message);
@@ -68,9 +80,9 @@ export const Booking = () => {
   const handlePaymentAndBooking = async () => {
     try {
       // 1. Payment
-      await apiClient('/payment', { data: { seat: { id: selectedSeat }, show: { showId } } });
+      await apiClient('/payment', { data: { seatIds: selectedSeats, show: { showId } } });
       // 2. Confirm Booking
-      await apiClient('/booking', { data: { seatId: selectedSeat, showId } });
+      await apiClient('/booking', { data: { seatIds: selectedSeats, showId } });
       setStep(3); // Success
     } catch (err: any) {
       setError(err.message);
@@ -120,15 +132,15 @@ export const Booking = () => {
               <p style={{ fontSize: '1.2rem', color: '#8a8a8a' }}>No seats found. (Make sure you have seeded your database with a Show and some Seats!)</p>
             ) : (
               <>
-                <SeatMap seats={seats} onSeatSelect={setSelectedSeat} selectedSeatId={selectedSeat} />
+                <SeatMap seats={seats} onSeatSelect={toggleSeatSelection} selectedSeatIds={selectedSeats} />
                 <div style={{ marginTop: '60px', display: 'flex', justifyContent: 'center', width: '100%' }}>
                   <button 
                     className="btn btn-primary" 
-                    disabled={!selectedSeat} 
+                    disabled={selectedSeats.length === 0} 
                     onClick={handleHoldSeat}
-                    style={{ fontSize: '24px', padding: '16px 48px', opacity: selectedSeat ? 1 : 0.5, cursor: selectedSeat ? 'pointer' : 'not-allowed' }}
+                    style={{ fontSize: '24px', padding: '16px 48px', opacity: selectedSeats.length > 0 ? 1 : 0.5, cursor: selectedSeats.length > 0 ? 'pointer' : 'not-allowed' }}
                   >
-                    Hold Selected Seat
+                    Hold Selected Seats
                   </button>
                 </div>
               </>
@@ -141,7 +153,7 @@ export const Booking = () => {
             <h3 style={{ fontSize: '32px', marginBottom: '16px' }}>Seat Held Successfully!</h3>
             <p style={{ fontSize: '18px', color: '#d9d9d9' }}>Please complete your payment within 10 minutes.</p>
             <div style={{ margin: '3rem auto', padding: '2rem', border: '2px dashed rgba(255,255,255,0.2)', borderRadius: '16px', maxWidth: '400px' }}>
-              <p style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: 0, color: 'var(--btn-book-now)' }}>Total: $99.00</p>
+              <p style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: 0, color: 'var(--btn-book-now)' }}>Total: ${(showPrice * selectedSeats.length).toFixed(2)}</p>
             </div>
             <button className="btn btn-primary" style={{ fontSize: '24px', padding: '16px 48px' }} onClick={handlePaymentAndBooking}>
               Pay Now & Confirm

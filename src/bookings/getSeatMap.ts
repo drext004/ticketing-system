@@ -24,7 +24,13 @@ const getSeatMap = async (req: Request, res: Response) => {
         if (!result.length) {
             throw new Error("Couldn't retreive seat map.")
         }
-        res.status(200).json({ result, message: "Seat Map fetched succesfully!" })
+        
+        const show = await prisma.show.findUnique({ where: { showId: showCode } });
+        if (!show) {
+            throw new Error("Show not found.");
+        }
+
+        res.status(200).json({ result, showPrice: show.price, message: "Seat Map fetched succesfully!" })
 
     }
 

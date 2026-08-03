@@ -8,12 +8,12 @@ interface Seat {
 interface SeatMapProps {
   seats: Seat[];
   onSeatSelect: (seatId: string) => void;
-  selectedSeatId: string | null;
+  selectedSeatIds: string[];
 }
 
-export const SeatMap: React.FC<SeatMapProps> = ({ seats, onSeatSelect, selectedSeatId }) => {
+export const SeatMap: React.FC<SeatMapProps> = ({ seats, onSeatSelect, selectedSeatIds }) => {
   const getSeatClass = (status: string, id: string) => {
-    if (id === selectedSeatId) return 'seat seat-selected';
+    if (selectedSeatIds.includes(id)) return 'seat seat-selected';
     if (status === 'AVAILABLE' || !status) return 'seat seat-available';
     if (status === 'HELD') return 'seat seat-held';
     if (status === 'BOOKED') return 'seat seat-booked';

@@ -39,5 +39,5 @@ Thumbs.db
 
 
 #rough files
-**/rough*.ts
+**rough*.ts
 /src/bookings/rough*.ts

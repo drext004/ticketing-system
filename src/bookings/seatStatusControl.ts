@@ -7,7 +7,15 @@ const prisma = new PrismaClient();
 
 const reserveSeat = async (request: Request, response: Response) => {
     const userId = (request as any).user.userId;
-    const { seatId, showId } = request.body;
+    const { seatIds, showId } = request.body;
+
+    if (!seatIds || seatIds.length === 0) {
+    return response.status(400).json({ error: "No seats selected." });
+}
+
+if (seatIds.length > 6) {
+    return response.status(400).json({ error: "Maximum 6 seats allowed per transaction." });
+}
 
     try {
         const result = await prisma.$transaction(async (tx) => {
@@ -29,28 +37,25 @@ const reserveSeat = async (request: Request, response: Response) => {
             }
 
 
-            const seat = await tx.seat.findUnique({ where: { id: seatId } });
+            const seats = await tx.seat.findMany({ where: { id:{ in: seatIds } } });
 
-            if (!seat) {
+            if (seats.length !== seatIds.length) {
+    throw new Error("One or more seats could not be found.");
+}
 
-                throw new Error("Seat not found");
-
-            }
-
-            const isActiveHold = seat.status === "HELD" &&
+    for (const seat of seats) {
+                const isActiveHold = seat.status === "HELD" &&
                 seat.expiryTime &&
                 Date.now() < seat.expiryTime.getTime();
 
-            if (seat.status === "BOOKED" || isActiveHold) {
-
-                throw new Error("Seat already taken or being bought.");
-            }
-
-
+    if (seat.status === "BOOKED" || isActiveHold) {
+        throw new Error(`Seat ${seat.id} is already taken or being bought.`);
+    }
+}
             const expiryTime = 10 * 60 * 1000 + Date.now();
 
-            const updatedSeat = await tx.seat.update({
-                where: { id: seatId },
+            const updatedSeat = await tx.seat.updateMany({
+                where: { id: { in: seatIds} },
                 data: {
                     status: "HELD",
                     userId: userId,

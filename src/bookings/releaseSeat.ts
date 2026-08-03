@@ -5,9 +5,9 @@ const prisma = new PrismaClient();
 
 export const releaseSeat = async (req: Request, res: Response) => {
     try {
-        const { seat } = req.body;
+        const { seatIds } = req.body;
         await prisma.seat.updateMany({
-            where: { id: seat.seatId, status: 'HELD' },
+            where: { id: { in: seatIds }, status: 'HELD' },
             data: {
                 status: "AVAILABLE",
                 userId: null,

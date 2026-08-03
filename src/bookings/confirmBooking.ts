@@ -7,48 +7,38 @@ const prisma = new PrismaClient();
 
 const confirmBooking = async (req: Request, res: Response) => {
     const userId = (req as any).user.userId
-    const seat = req.body;
+    const { seatIds, showId } = req.body;
 
     try {
         const result = await prisma.$transaction(async (tx) => {
-            const seatExists = await tx.seat.findUnique({ where: { id: seat.seatId } })
+            const seatsExist = await tx.seat.findMany({ where: { id: { in: seatIds } } });
 
-            if (!seatExists) {
-                throw new Error("Seat not found")
+            if (seatsExist.length !== seatIds.length) {
+                throw new Error("One or more seats not found")
             }
 
-            const userCheck = seatExists.userId;
-
-            const paymentMade = seatExists.paymentId;
-
-            const seatStatus = seatExists.status;
-
-            const showId = seatExists.showId;
-
-            if (seatStatus === "HELD" && paymentMade &&
-                userCheck === userId &&
-                seatExists.expiryTime &&
-                Date.now() < seatExists.expiryTime.getTime() &&
-                seat.showId === showId) {
-                const updatedSeat = await tx.seat.update({
-                    where: { id: seat.seatId },
-                    data: {
-                        status: "BOOKED",
-                        expiryTime: null
-                    }
-                })
-
-                io.emit('seatUpdate');
-
-
-                return updatedSeat;
+            for (const seat of seatsExist) {
+                if (seat.status !== "HELD" || 
+                    !seat.paymentId ||
+                    seat.userId !== userId ||
+                    !seat.expiryTime ||
+                    Date.now() >= seat.expiryTime.getTime() ||
+                    seat.showId !== showId) {
+                    throw new Error(`Invalid Request for seat ${seat.id}.`);
+                }
             }
 
-            else {
-                throw new Error("Invalid Request.")
-            }
+            const updatedSeats = await tx.seat.updateMany({
+                where: { id: { in: seatIds } },
+                data: {
+                    status: "BOOKED",
+                    expiryTime: null
+                }
+            })
 
+            io.emit('seatUpdate');
 
+            return updatedSeats;
 
         })
 
